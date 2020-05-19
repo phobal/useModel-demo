@@ -1,66 +1,92 @@
-# umi next app
+### Bug 复现 demo
+[@umijs/plugin-model](https://github.com/umijs/plugins/blob/master/packages/plugin-model/src/index.ts) 在更新完数据后不会重新 render
 
-umi@3 全家桶方案
+#### 问题
 
-## [0.0.1]() (2020-04-10)
+组件订阅某个 model 中的数据，当该 model 中的数据更新后未 rerender 组件
 
-添加工程化，初始化项目。选用 `@umijs/fabric`。
+比如下面的示例  
 
-![0.0.1 build 314.05KB](./analyze/20200410001.jpg)
+当鼠标点击五角星的时候应该由空心变为实心才对，但是实际上并没有变化
 
-> umi.js 314.05KB
+![](./readme/shot.png)
 
-| 包名 | Parsed 大小 |
-|  :-  | :-:  |
-| core-js | 121.36KB |
-| react-dom | 115.45KB |
-| internals | 49.25KB |
-| @umijs | 17.84KB |
+#### 核心代码块
 
-## [0.0.2]() (2020-04-10)
+模型 `models/home`
 
-添加布局，增加 layout 及相关配置。选用 `@umijs/plugin-layout`。
+``` ts
+import { useState, useEffect } from 'react';
+import { useRequest } from 'umi';
+import { query } from '@/services/api';
+import { IFocusCustomer } from '@/types';
 
-![0.0.2 build 3.03MB](./analyze/20200410002.jpg)
+export default () => {
+  const [focusUsers, setFocusUsers] = useState<IFocusCustomer[]>([]);
+  const { data } = useRequest(query);
+  useEffect(() => {
+    setFocusUsers(data);
+  }, [data]);
+  return { focusUsers, setFocusUsers };
+};
 
-> umi.js 3.03MB
+```
 
-| 包名 | Parsed 大小 |
-|  :-  | :-:  |
-| @ant-design | 1.03MB |
-| 其中 icons | 902.29KB |
-| antd | 965.18KB |
-| moment | 345.51KB |
-| @umijs | 17.84KB |
+页面 `pages/index.tsx`
 
-## [0.0.3]() (2020-04-10)
+``` tsx
+const UserItem = ({ id, name, isActive }) => {
+  // @ts-ignore
+  const { focusUsers, setFocusUsers } = useModel('home', (m) =>
+    pick(m, 'focusUsers', 'setFocusUsers'),
+  );
+  // 点击五角星的逻辑
+  const onClick = (status: string) => {
+    const result = focusUsers.map((user: IFocusCustomer) => {
+      if (user.id === id) {
+        user.isActive = status !== 'active';
+      }
+      return user;
+    });
+    // 更新 model 中的数据
+    setFocusUsers(result);
+  };
+  return (
+    <>
+      {isActive ? (
+        <ActiveStarIcon onClick={() => onClick('active')} />
+      ) : (
+        <UnActiveStarIcon onClick={() => onClick('unActive')} />
+      )}
+      <Link to="" style={{ color: 'rgba(0, 0, 0, 0.5)' }}>
+        {name}
+      </Link>
+    </>
+  );
+};
 
-添加请求和 mock 数据。选用 `@umijs/plugin-request`。
+export default () => {
+  // @ts-ignore
+  const { focusUsers } = useModel('home', (m) => pick(m, 'focusUsers'));
+  return (
+    <List
+      dataSource={focusUsers}
+      renderItem={(item: IFocusCustomer) => (
+        <List.Item>
+          <UserItem id={item.id} name={item.customerName} isActive={item.isActive} />
+        </List.Item>
+      )}
+    />
+  );
+};
 
-![0.0.3 build 3.1MB](./analyze/20200410003.jpg)
+```
 
-> umi.js 3.1MB
+#### 如何启动
 
-| 包名 | Parsed 大小 |
-|  :-  | :-:  |
-| @ant-design | 1.03MB |
-| 其中 icons | 902.29KB |
-| antd | 965.18KB |
-| moment | 345.51KB |
-| @umijs | 31.92KB |
-
-## [0.0.4]() (2020-04-10)
-
-添加极简数据流。选用 `@umijs/plugin-model`。极简数据好像仅仅只能用于共享全局数据。因为只能在 models 里面使用 `useState`。后续[issues/2](https://github.com/umijs/next-app/issues/2)
-
-![0.0.4 build 3.1M](./analyze/20200410004.jpg)
-
-> umi.js 3.1M
-
-| 包名 | Parsed 大小 |
-|  :-  | :-:  |
-| @ant-design | 1.03MB |
-| @ant-design/icons | 758.28KB |
-| antd | 691.55KB |
-| moment | 345.51KB |
-| @umijs | 33.76KB |
+```
+$ git clone https://github.com/phobal/useModel-demo
+$ cd useModel-demo
+$ yarn
+$ yarn start
+```
